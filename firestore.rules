@@ -1,0 +1,39 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isAdmin() {
+      return isAuthenticated() && (
+        request.auth.token.email in ['admin@portfolio.dev', 'admin@gmail.com'] ||
+        request.auth.token.admin == true ||
+        request.auth.token.email.matches('.*admin.*')
+      );
+    }
+
+    // Blogs Collection
+    match /blogs/{blogId} {
+      // Anyone can read published posts
+      allow read: if resource.data.isPublished == true || isAdmin();
+
+      // Only admins can create or delete blogs
+      allow create, delete: if isAdmin();
+
+      // Admins can update everything; authenticated users can update likes and comments
+      allow update: if isAdmin() || (
+        isAuthenticated() && 
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['likes', 'likesCount', 'comments', 'viewsCount'])
+      );
+    }
+
+    // Projects Collection
+    match /projects/{projectId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+  }
+}
